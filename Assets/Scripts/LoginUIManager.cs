@@ -17,9 +17,22 @@ public class LoginUIManager : MonoBehaviour
     {
         playerID = null;
     }
+
     public void onLoginButtonClicked()
     {
-        playerID = loginInput.text;
+        if (loginInput == null || loginManager == null)
+        {
+            Debug.LogWarning("Login UI references are missing.");
+            return;
+        }
+
+        playerID = loginInput.text?.Trim();
+        if (string.IsNullOrEmpty(playerID))
+        {
+            Debug.LogWarning("Please enter a player ID.");
+            return;
+        }
+
         loginManager.Login(playerID);
     }
 }

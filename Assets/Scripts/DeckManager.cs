@@ -7,26 +7,26 @@ public class DeckManager : MonoBehaviour
     GameManager gameManager;
     public GameObject cardPrefab;
     public List<Sprite> cardSprites;
-    //생성된 카드 리스트
     public List<Card> cards = new List<Card>();
-  
+
+    private Dictionary<int, GameObject> lastPlayedCards = new Dictionary<int, GameObject>();
+
     private void Awake()
     {
         if (gameManager == null)
         {
-            gameManager=FindObjectOfType<GameManager>();
+            gameManager = FindObjectOfType<GameManager>();
         }
     }
-   
-    private Dictionary<int, GameObject> lastPlayedCards = new Dictionary<int, GameObject>();
 
-   
     public void InitializeDeck(List<(Card.FruitType type, int count, int amount)> cardInfo, int playerCount)
     {
-  
-        // 기존 카드 정리
+        // Clear the previous deck view before rebuilding it.
         foreach (Transform child in transform)
+        {
             Destroy(child.gameObject);
+        }
+
         cards.Clear();
 
         int index = 0;
@@ -34,21 +34,21 @@ public class DeckManager : MonoBehaviour
         {
             for (int i = 0; i < info.amount; i++)
             {
-                Vector3 spawnPos = new Vector3(index * 0.5f, 0, 0); // 카드 위치 생성
+                Vector3 spawnPos = new Vector3(index * 0.5f, 0, 0);
                 GameObject cardObj = Instantiate(cardPrefab, spawnPos, Quaternion.identity, transform);
                 Card card = cardObj.GetComponent<Card>();
                 if (card != null)
                 {
-                    Sprite sprite = GetCardSprite(info.type, info.count);
-                    card.Initialize(info.type, info.count, sprite);
+                    card.Initialize(info.type, info.count, null);
                     cardObj.SetActive(false);
                     cards.Add(card);
                 }
+
                 index++;
             }
         }
     }
-    
+
     public void Shuffle()
     {
         for (int i = 0; i < cards.Count; i++)
@@ -60,60 +60,48 @@ public class DeckManager : MonoBehaviour
         }
     }
 
-    private Sprite GetCardSprite(Card.FruitType type, int count)
-    {
-        int index = ((int)type) * 5 + (count - 1);
-       
-
-        if (index >= 0 && index < cardSprites.Count)
-        {
-            return cardSprites[index];
-        }
-        else
-        {
-            return null;
-        }
-    }
-
     public void DrawCard(Card.FruitType cardType, Vector3 cardPos, int cardCount, int senderIndex)
     {
-
-        // 기존 카드 오브젝트가 있다면 비활성화 또는 제거
+        // Hide the previous table card for this player.
         if (lastPlayedCards.ContainsKey(senderIndex))
         {
-            lastPlayedCards[senderIndex].SetActive(false);
+            Destroy(lastPlayedCards[senderIndex]);
         }
 
-        //서버에서 받은 위치를 그대로 사용
-        Vector3 spawnPos = cardPos;
-
-        // 카드 프리팹 생성
-        GameObject cardObj = Instantiate(cardPrefab, spawnPos, Quaternion.identity);
+        GameObject cardObj = Instantiate(cardPrefab, cardPos, Quaternion.identity);
         Card card = cardObj.GetComponent<Card>();
         if (card != null)
         {
-            Sprite sprite = GetCardSprite(cardType, cardCount);
-            card.Initialize((Card.FruitType)cardType, cardCount, sprite);
+            card.Initialize(cardType, cardCount, null);
         }
         else
         {
-            Debug.LogError("Card 컴포넌트를 찾을 수 없습니다.");
+            Debug.LogError("Card component is missing on the prefab.");
         }
+
         lastPlayedCards[senderIndex] = cardObj;
     }
+
     public void ClearAllTableCard(int totalPlayer)
     {
-        Debug.Log(totalPlayer);
-        //제출한 모든 카드를 삭제
-        for (int i = 0; i < totalPlayer; i++)
+        foreach (GameObject cardObject in lastPlayedCards.Values)
         {
-            if (lastPlayedCards.ContainsKey(i))
+            if (cardObject != null)
             {
-                Debug.Log($"[카드 제거] 인덱스 {i} - 존재 여부: {lastPlayedCards.ContainsKey(i)}");
-                Destroy(lastPlayedCards[i]);
+                Destroy(cardObject);
             }
         }
+
         lastPlayedCards.Clear();
     }
-}
 
+    public void SyncTableState(List<(Card.FruitType type, Vector3 position, int count, int playerIndex)> tableCards)
+    {
+        ClearAllTableCard(lastPlayedCards.Count);
+
+        foreach (var tableCard in tableCards)
+        {
+            DrawCard(tableCard.type, tableCard.position, tableCard.count, tableCard.playerIndex);
+        }
+    }
+}

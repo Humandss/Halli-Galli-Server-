@@ -12,13 +12,24 @@ public class UnityMainThreadDispatcher : MonoBehaviour
     {
         return _instance;
     }
-    //Unity 메인 API들을 스레드에서 함부호 호출할 경우 에러가 발생할 수 있음.
-    //이를 방지하기 위하여 디스패쳐에서 Awake에서 instance초기화 후 진행
+
+    public static UnityMainThreadDispatcher EnsureInstance()
+    {
+        if (_instance == null)
+        {
+            GameObject dispatcherObject = new GameObject("UnityMainThreadDispatcher");
+            _instance = dispatcherObject.AddComponent<UnityMainThreadDispatcher>();
+        }
+
+        return _instance;
+    }
+
+    // Unity APIs must run on the main thread.
     void Awake()
     {
         if (_instance == null)
         {
-             _instance = this;
+            _instance = this;
             DontDestroyOnLoad(gameObject);
         }
         else if (_instance != this)
@@ -37,13 +48,19 @@ public class UnityMainThreadDispatcher : MonoBehaviour
 
     private void Update()
     {
-        while (_executionQueue.Count > 0)
+        while (true)
         {
             Action action;
             lock (_executionQueue)
             {
+                if (_executionQueue.Count == 0)
+                {
+                    break;
+                }
+
                 action = _executionQueue.Dequeue();
             }
+
             action?.Invoke();
         }
     }
